@@ -10,17 +10,29 @@ dotenv.config();
 // Create Express app
 const app = express();
 
-// Middleware
-app.use(cors());
+// CORS configuration
+app.use(cors({
+  origin: ['https://anagi-clinic.surge.sh', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// CORS preflight response
+app.options('*', cors());
+
 app.use(express.json());
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected successfully!'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+// MongoDB connection - use a try/catch for better serverless handling
+try {
+  mongoose.connect(process.env.MONGODB_URI);
+  console.log('MongoDB connection initialized');
+} catch (err) {
+  console.error('MongoDB connection error:', err);
+}
 
-// Routes - FIX THE FILENAME HERE
-const doctorRoutes = require('./routes/doctorRoutes'); 
+// Routes
+const doctorRoutes = require('./routes/doctorRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
@@ -34,6 +46,11 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 
+// Health check route for Vercel
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'API is running' });
+});
+
 // Basic route
 app.get('/', (req, res) => {
   res.json({ message: 'Clinic Management System API is running!' });
@@ -45,8 +62,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong!' });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// Start server only in development mode (not in Vercel)
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+// Export for Vercel serverless functions
+module.exports = app;
